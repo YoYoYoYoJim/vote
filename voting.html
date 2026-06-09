@@ -155,6 +155,14 @@
       flex-wrap: wrap;
     }
 
+    .sync-status {
+      font-size: 0.82rem;
+      color: var(--muted);
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(16, 36, 58, 0.08);
+    }
+
     .stats {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -400,6 +408,7 @@
         <div class="role-tools">
           <div class="role-badge" id="roleBadge">当前身份：未进入</div>
           <button class="btn-ghost" id="switchUserBtn" type="button">切换用户</button>
+          <div class="sync-status" id="syncStatus">同步状态：连接中</div>
         </div>
       </div>
       <div class="panel stats" id="stats">
@@ -425,21 +434,45 @@
     </section>
   </div>
 
-  <script>
-    const DEFAULT_OPTIONS = [
-      { id: crypto.randomUUID(), name: "方案 A", votes: 0 },
-      { id: crypto.randomUUID(), name: "方案 B", votes: 0 },
-      { id: crypto.randomUUID(), name: "方案 C", votes: 0 }
-    ];
-    const POLL_DATA_KEY = "quick_vote_poll_data_v1";
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getDatabase,
+      ref,
+      onValue,
+      set,
+      update,
+      runTransaction,
+      get
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
-    const state = {
-      options: loadPollData()
+    const DEFAULT_OPTIONS = [
+      { id: crypto.randomUUID(), name: "方案 A", votes: 0, createdAt: Date.now() - 2 },
+      { id: crypto.randomUUID(), name: "方案 B", votes: 0, createdAt: Date.now() - 1 },
+      { id: crypto.randomUUID(), name: "方案 C", votes: 0, createdAt: Date.now() }
+    ];
+
+    // Replace with your Firebase project's web config.
+    const firebaseConfig = {
+      apiKey: "",
+      authDomain: "",
+      databaseURL: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
     };
 
+    const POLL_PATH = "sharedPoll/main/options";
     const ADMIN_CODE = "jim";
+
+    const state = {
+      options: [...DEFAULT_OPTIONS]
+    };
+
     let currentRole = null;
     let hasCurrentUserVoted = false;
+    let db = null;
 
     const appWrap = document.getElementById("appWrap");
     const entryGate = document.getElementById("entryGate");
@@ -451,6 +484,7 @@
     const entryHint = document.getElementById("entryHint");
     const roleBadge = document.getElementById("roleBadge");
     const switchUserBtn = document.getElementById("switchUserBtn");
+    const syncStatusEl = document.getElementById("syncStatus");
     const listEl = document.getElementById("list");
     const inputEl = document.getElementById("optionInput");
     const totalVotesEl = document.getElementById("totalVotes");
@@ -462,34 +496,69 @@
       return currentRole === "admin";
     }
 
-    function loadPollData() {
-      try {
-        const raw = localStorage.getItem(POLL_DATA_KEY);
-        if (!raw) return DEFAULT_OPTIONS;
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_OPTIONS;
+    function setSyncStatus(text) {
+      syncStatusEl.textContent = `同步状态：${text}`;
+    }
 
-        const normalized = parsed
-          .filter((item) => item && typeof item.name === "string")
-          .map((item) => ({
-            id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
-            name: item.name,
-            votes: Number.isFinite(item.votes) ? Math.max(0, Math.floor(item.votes)) : 0
-          }));
+    function hasFirebaseConfig() {
+      return Boolean(
+        firebaseConfig.apiKey &&
+        firebaseConfig.projectId &&
+        firebaseConfig.appId &&
+        firebaseConfig.databaseURL
+      );
+    }
 
-        return normalized.length > 0 ? normalized : DEFAULT_OPTIONS;
-      } catch {
-        return DEFAULT_OPTIONS;
+    function sanitizeOptions(raw) {
+      if (!raw || typeof raw !== "object") return [];
+
+      return Object.values(raw)
+        .filter((item) => item && typeof item.name === "string")
+        .map((item) => ({
+          id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
+          name: item.name,
+          votes: Number.isFinite(item.votes) ? Math.max(0, Math.floor(item.votes)) : 0,
+          createdAt: Number.isFinite(item.createdAt) ? item.createdAt : Date.now()
+        }))
+        .sort((a, b) => a.createdAt - b.createdAt);
+    }
+
+    function optionsToMap(options) {
+      const map = {};
+      for (const item of options) {
+        map[item.id] = item;
       }
+      return map;
     }
 
-    function savePollData() {
-      localStorage.setItem(POLL_DATA_KEY, JSON.stringify(state.options));
-    }
+    async function initFirebaseSync() {
+      if (!hasFirebaseConfig()) {
+        setSyncStatus("未配置 Firebase");
+        alert("请先在 voting.html 中填写 Firebase 配置，才能实现多人实时共享。\n\n位置：firebaseConfig");
+        render();
+        return;
+      }
 
-    function syncPollDataFromStorage() {
-      state.options = loadPollData();
-      render();
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getDatabase(app);
+        const pollRef = ref(db, POLL_PATH);
+
+        const snapshot = await get(pollRef);
+        if (!snapshot.exists()) {
+          await set(pollRef, optionsToMap(DEFAULT_OPTIONS));
+        }
+
+        onValue(pollRef, (snap) => {
+          const next = sanitizeOptions(snap.val());
+          state.options = next.length > 0 ? next : [...DEFAULT_OPTIONS];
+          setSyncStatus("已连接");
+          render();
+        });
+      } catch (error) {
+        setSyncStatus("连接失败");
+        alert("Firebase 连接失败，请检查配置和数据库规则。\n\n" + (error?.message || "未知错误"));
+      }
     }
 
     function enterAs(role) {
@@ -502,7 +571,7 @@
       inputEl.placeholder = isAdmin() ? "输入一个选项，例如：去爬山" : "Guest 无法修改选项";
       entryGate.classList.add("hidden");
       appWrap.style.display = "block";
-      syncPollDataFromStorage();
+      render();
     }
 
     function totalVotes() {
@@ -559,9 +628,14 @@
         .replace(/'/g, "&#039;");
     }
 
-    function addOption() {
+    async function addOption() {
       if (!isAdmin()) {
         alert("Guest 只能投票，不能修改选项。");
+        return;
+      }
+
+      if (!db) {
+        alert("尚未连接 Firebase，无法写入。请先配置 firebaseConfig。");
         return;
       }
 
@@ -576,17 +650,23 @@
         return;
       }
 
-      state.options.push({ id: crypto.randomUUID(), name, votes: 0 });
-      savePollData();
+      const newItem = { id: crypto.randomUUID(), name, votes: 0, createdAt: Date.now() };
+      await update(ref(db, POLL_PATH), { [newItem.id]: newItem });
       inputEl.value = "";
       inputEl.focus();
-      render();
     }
 
-    addBtn.addEventListener("click", addOption);
+    addBtn.addEventListener("click", () => {
+      addOption().catch((error) => {
+        alert("添加失败：" + (error?.message || "未知错误"));
+      });
+    });
+
     inputEl.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
-        addOption();
+        addOption().catch((error) => {
+          alert("添加失败：" + (error?.message || "未知错误"));
+        });
       }
     });
 
@@ -596,10 +676,20 @@
         return;
       }
 
-      state.options = state.options.map((item) => ({ ...item, votes: 0 }));
+      if (!db) {
+        alert("尚未连接 Firebase，无法写入。请先配置 firebaseConfig。");
+        return;
+      }
+
+      const payload = {};
+      for (const item of state.options) {
+        payload[`${item.id}/votes`] = 0;
+      }
+
       hasCurrentUserVoted = false;
-      savePollData();
-      render();
+      update(ref(db, POLL_PATH), payload).catch((error) => {
+        alert("重置失败：" + (error?.message || "未知错误"));
+      });
     });
 
     listEl.addEventListener("click", (event) => {
@@ -613,18 +703,26 @@
       const id = itemEl.dataset.id;
       if (!id) return;
 
+      if (!db) {
+        alert("尚未连接 Firebase，无法写入。请先配置 firebaseConfig。");
+        return;
+      }
+
       if (action === "vote") {
         if (hasVoted()) {
           alert("你已经投过票了，每人只能投一票。");
           return;
         }
 
-        state.options = state.options.map((item) => {
-          if (item.id !== id) return item;
-          return { ...item, votes: item.votes + 1 };
-        });
         hasCurrentUserVoted = true;
-        savePollData();
+        const voteRef = ref(db, `${POLL_PATH}/${id}/votes`);
+        runTransaction(voteRef, (current) => {
+          const now = Number.isFinite(current) ? current : 0;
+          return now + 1;
+        }).catch((error) => {
+          hasCurrentUserVoted = false;
+          alert("投票失败：" + (error?.message || "未知错误"));
+        });
       }
 
       if (action === "del") {
@@ -632,11 +730,11 @@
           alert("只有 Admin 可以删除选项。");
           return;
         }
-        state.options = state.options.filter((item) => item.id !== id);
-        savePollData();
-      }
 
-      render();
+        update(ref(db, POLL_PATH), { [id]: null }).catch((error) => {
+          alert("删除失败：" + (error?.message || "未知错误"));
+        });
+      }
     });
 
     guestEnterBtn.addEventListener("click", () => {
@@ -677,21 +775,11 @@
       resetBtn.disabled = true;
       inputEl.disabled = true;
       inputEl.placeholder = "请先选择身份";
-      syncPollDataFromStorage();
+      render();
     });
 
-    window.addEventListener("storage", (event) => {
-      if (event.key === POLL_DATA_KEY) {
-        syncPollDataFromStorage();
-      }
-    });
-
-    window.addEventListener("focus", () => {
-      syncPollDataFromStorage();
-    });
-
-    // Keep the app rendered beneath the role gate to avoid blank-page flashes.
     render();
+    initFirebaseSync();
   </script>
 </body>
 </html>
