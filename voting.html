@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>快速投票站</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-top: #fff7e8;
+      --bg-bottom: #d9f1ff;
+      --card: rgba(255, 255, 255, 0.78);
+      --ink: #10243a;
+      --muted: #4d6078;
+      --accent: #ff6f3c;
+      --accent-2: #12b886;
+      --danger: #ef476f;
+      --ring: rgba(255, 111, 60, 0.25);
+      --shadow: 0 14px 40px rgba(16, 36, 58, 0.18);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Space Grotesk", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 12%, rgba(255, 111, 60, 0.28), transparent 22%),
+        radial-gradient(circle at 88% 18%, rgba(18, 184, 134, 0.2), transparent 24%),
+        radial-gradient(circle at 80% 82%, rgba(16, 36, 58, 0.12), transparent 26%),
+        linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+      padding: 22px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .wrap {
+      width: min(980px, 100%);
+      animation: reveal 700ms ease both;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .gate {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(16, 36, 58, 0.45);
+      backdrop-filter: blur(4px);
+    }
+
+    .gate-card {
+      width: min(460px, 100%);
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(16, 36, 58, 0.12);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      animation: reveal 380ms ease both;
+    }
+
+    .gate-title {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .gate-note {
+      margin: 8px 0 14px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+
+    .gate-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .btn-ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid rgba(16, 36, 58, 0.15);
+    }
+
+    .admin-auth {
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .hint {
+      min-height: 20px;
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.9rem;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .panel {
+      background: var(--card);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.55rem, 4vw, 2.4rem);
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .role-badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(16, 36, 58, 0.1);
+      font-size: 0.85rem;
+      color: var(--ink);
+    }
+
+    .role-tools {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .stat-box {
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid rgba(16, 36, 58, 0.08);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid rgba(16, 36, 58, 0.2);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      font: inherit;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.92);
+      transition: box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .btn-add {
+      background: var(--accent-2);
+      color: #fff;
+    }
+
+    .btn-reset {
+      background: #fff;
+      border: 1px solid rgba(16, 36, 58, 0.15);
+      color: var(--ink);
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(16, 36, 58, 0.08);
+      border-radius: 14px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      animation: rise 360ms ease both;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .name {
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .votes {
+      color: var(--muted);
+      font-size: 0.92rem;
+      white-space: nowrap;
+    }
+
+    .bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(16, 36, 58, 0.1);
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ff8f6b, #ff6f3c 38%, #f76707);
+      transition: width 300ms ease;
+    }
+
+    .item-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-vote {
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+    }
+
+    .btn-vote:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+      filter: none;
+    }
+
+    .btn-del {
+      background: #fff;
+      color: var(--danger);
+      border: 1px solid rgba(239, 71, 111, 0.35);
+      padding: 8px 12px;
+      border-radius: 10px;
+    }
+
+    .btn-del:disabled,
+    .btn-add:disabled,
+    .btn-reset:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+      filter: none;
+    }
+
+    .empty {
+      border: 1px dashed rgba(16, 36, 58, 0.25);
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--muted);
+      text-align: center;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .footnote {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    @keyframes reveal {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 14px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="gate" id="entryGate">
+    <section class="gate-card">
+      <h2 class="gate-title">选择身份后进入</h2>
+      <p class="gate-note">Guest 只能投票；Admin 可添加选项、删除选项和重置票数。请输入管理员口令。</p>
+      <div class="gate-actions">
+        <button class="btn-add" id="guestEnterBtn">以 Guest 进入</button>
+        <button class="btn-ghost" id="showAdminBtn">选择 Admin</button>
+      </div>
+      <div class="admin-auth hidden" id="adminAuth">
+        <input id="adminInput" type="text" placeholder="输入 Admin 口令" />
+        <button class="btn-add" id="adminEnterBtn">验证并进入</button>
+      </div>
+      <p class="hint" id="entryHint"></p>
+    </section>
+  </div>
+
+  <div class="wrap" id="appWrap">
+    <section class="hero">
+      <div class="panel">
+        <h1>快速投票站</h1>
+        <p class="subtitle">输入选项后即可发起投票。每次点击“投一票”会实时更新票数和占比，适合会议决策或小组选择。当前规则：当前用户每人仅可投一票（页面刷新后重置）。</p>
+        <div class="role-tools">
+          <div class="role-badge" id="roleBadge">当前身份：未进入</div>
+          <button class="btn-ghost" id="switchUserBtn" type="button">切换用户</button>
+        </div>
+      </div>
+      <div class="panel stats" id="stats">
+        <div class="stat-box">
+          <div class="stat-label">总票数</div>
+          <div class="stat-value" id="totalVotes">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">选项数量</div>
+          <div class="stat-value" id="optionCount">0</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="controls">
+        <input id="optionInput" type="text" maxlength="40" placeholder="输入一个选项，例如：去爬山" />
+        <button class="btn-add" id="addBtn">添加选项</button>
+        <button class="btn-reset" id="resetBtn">重置票数</button>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="footnote">提示：删除选项不会影响其他选项数据，重置票数会保留选项名称。</div>
+    </section>
+  </div>
+
+  <script>
+    const DEFAULT_OPTIONS = [
+      { id: crypto.randomUUID(), name: "方案 A", votes: 0 },
+      { id: crypto.randomUUID(), name: "方案 B", votes: 0 },
+      { id: crypto.randomUUID(), name: "方案 C", votes: 0 }
+    ];
+    const POLL_DATA_KEY = "quick_vote_poll_data_v1";
+
+    const state = {
+      options: loadPollData()
+    };
+
+    const ADMIN_CODE = "jim";
+    let currentRole = null;
+    let hasCurrentUserVoted = false;
+
+    const appWrap = document.getElementById("appWrap");
+    const entryGate = document.getElementById("entryGate");
+    const guestEnterBtn = document.getElementById("guestEnterBtn");
+    const showAdminBtn = document.getElementById("showAdminBtn");
+    const adminEnterBtn = document.getElementById("adminEnterBtn");
+    const adminAuth = document.getElementById("adminAuth");
+    const adminInput = document.getElementById("adminInput");
+    const entryHint = document.getElementById("entryHint");
+    const roleBadge = document.getElementById("roleBadge");
+    const switchUserBtn = document.getElementById("switchUserBtn");
+    const listEl = document.getElementById("list");
+    const inputEl = document.getElementById("optionInput");
+    const totalVotesEl = document.getElementById("totalVotes");
+    const optionCountEl = document.getElementById("optionCount");
+    const addBtn = document.getElementById("addBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    function isAdmin() {
+      return currentRole === "admin";
+    }
+
+    function loadPollData() {
+      try {
+        const raw = localStorage.getItem(POLL_DATA_KEY);
+        if (!raw) return DEFAULT_OPTIONS;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_OPTIONS;
+
+        const normalized = parsed
+          .filter((item) => item && typeof item.name === "string")
+          .map((item) => ({
+            id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
+            name: item.name,
+            votes: Number.isFinite(item.votes) ? Math.max(0, Math.floor(item.votes)) : 0
+          }));
+
+        return normalized.length > 0 ? normalized : DEFAULT_OPTIONS;
+      } catch {
+        return DEFAULT_OPTIONS;
+      }
+    }
+
+    function savePollData() {
+      localStorage.setItem(POLL_DATA_KEY, JSON.stringify(state.options));
+    }
+
+    function enterAs(role) {
+      currentRole = role;
+      hasCurrentUserVoted = false;
+      roleBadge.textContent = `当前身份：${isAdmin() ? "Admin" : "Guest"}`;
+      addBtn.disabled = !isAdmin();
+      resetBtn.disabled = !isAdmin();
+      inputEl.disabled = !isAdmin();
+      inputEl.placeholder = isAdmin() ? "输入一个选项，例如：去爬山" : "Guest 无法修改选项";
+      entryGate.classList.add("hidden");
+      appWrap.style.display = "block";
+      render();
+    }
+
+    function totalVotes() {
+      return state.options.reduce((sum, item) => sum + item.votes, 0);
+    }
+
+    function percent(votes, total) {
+      if (total === 0) return 0;
+      return Math.round((votes / total) * 100);
+    }
+
+    function hasVoted() {
+      return hasCurrentUserVoted;
+    }
+
+    function render() {
+      const total = totalVotes();
+      const voted = hasVoted();
+      const admin = isAdmin();
+      totalVotesEl.textContent = String(total);
+      optionCountEl.textContent = String(state.options.length);
+
+      if (state.options.length === 0) {
+        listEl.innerHTML = "<div class='empty'>还没有任何选项，先添加一个吧。</div>";
+        return;
+      }
+
+      listEl.innerHTML = state.options
+        .map((item) => {
+          const pct = percent(item.votes, total);
+          return `
+            <article class="item" data-id="${item.id}">
+              <div class="row">
+                <div class="name">${escapeHTML(item.name)}</div>
+                <div class="votes">${item.votes} 票 · ${pct}%</div>
+              </div>
+              <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
+              <div class="item-actions">
+                <button class="btn-vote" data-action="vote" ${voted ? "disabled" : ""}>${voted ? "已投票" : "投一票"}</button>
+                <button class="btn-del" data-action="del" ${admin ? "" : "disabled"}>删除</button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+    }
+
+    function escapeHTML(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function addOption() {
+      if (!isAdmin()) {
+        alert("Guest 只能投票，不能修改选项。");
+        return;
+      }
+
+      const name = inputEl.value.trim();
+      if (!name) return;
+
+      const duplicated = state.options.some(
+        (item) => item.name.toLowerCase() === name.toLowerCase()
+      );
+      if (duplicated) {
+        alert("该选项已存在，请换一个名称。");
+        return;
+      }
+
+      state.options.push({ id: crypto.randomUUID(), name, votes: 0 });
+      savePollData();
+      inputEl.value = "";
+      inputEl.focus();
+      render();
+    }
+
+    addBtn.addEventListener("click", addOption);
+    inputEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        addOption();
+      }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      if (!isAdmin()) {
+        alert("Guest 不能重置票数。");
+        return;
+      }
+
+      state.options = state.options.map((item) => ({ ...item, votes: 0 }));
+      hasCurrentUserVoted = false;
+      savePollData();
+      render();
+    });
+
+    listEl.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLButtonElement)) return;
+
+      const action = target.dataset.action;
+      const itemEl = target.closest(".item");
+      if (!itemEl) return;
+
+      const id = itemEl.dataset.id;
+      if (!id) return;
+
+      if (action === "vote") {
+        if (hasVoted()) {
+          alert("你已经投过票了，每人只能投一票。");
+          return;
+        }
+
+        state.options = state.options.map((item) => {
+          if (item.id !== id) return item;
+          return { ...item, votes: item.votes + 1 };
+        });
+        hasCurrentUserVoted = true;
+        savePollData();
+      }
+
+      if (action === "del") {
+        if (!isAdmin()) {
+          alert("只有 Admin 可以删除选项。");
+          return;
+        }
+        state.options = state.options.filter((item) => item.id !== id);
+        savePollData();
+      }
+
+      render();
+    });
+
+    guestEnterBtn.addEventListener("click", () => {
+      entryHint.textContent = "";
+      enterAs("guest");
+    });
+
+    showAdminBtn.addEventListener("click", () => {
+      adminAuth.classList.remove("hidden");
+      adminInput.focus();
+      entryHint.textContent = "";
+    });
+
+    adminEnterBtn.addEventListener("click", () => {
+      if (adminInput.value.trim() !== ADMIN_CODE) {
+        entryHint.textContent = "Admin 口令错误，请重试。";
+        return;
+      }
+      entryHint.textContent = "";
+      enterAs("admin");
+    });
+
+    adminInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        adminEnterBtn.click();
+      }
+    });
+
+    switchUserBtn.addEventListener("click", () => {
+      currentRole = null;
+      hasCurrentUserVoted = false;
+      roleBadge.textContent = "当前身份：未进入";
+      adminInput.value = "";
+      entryHint.textContent = "";
+      adminAuth.classList.add("hidden");
+      entryGate.classList.remove("hidden");
+      addBtn.disabled = true;
+      resetBtn.disabled = true;
+      inputEl.disabled = true;
+      inputEl.placeholder = "请先选择身份";
+      render();
+    });
+
+    // Keep the app rendered beneath the role gate to avoid blank-page flashes.
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+Flask==2.0.1
+PyQt5==5.15.4
+random2==1.0.1
+
+# PCIe 6.0 Test Suite Dependencies
+# For Windows WMI support (optional)
+wmi>=1.5.1 ; sys_platform == 'win32'
+
+# For system monitoring and analysis
+psutil>=5.9.0
+
+# For enhanced testing capabilities
+numpy>=1.20.0
