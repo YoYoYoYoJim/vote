@@ -396,7 +396,7 @@
     <section class="hero">
       <div class="panel">
         <h1>快速投票站</h1>
-        <p class="subtitle">输入选项后即可发起投票。每次点击“投一票”会实时更新票数和占比，适合会议决策或小组选择。当前规则：当前用户每人仅可投一票（页面刷新后重置）。</p>
+        <p class="subtitle">输入选项后即可发起投票。每次点击“投一票”会实时更新票数和占比，适合会议决策或小组选择。当前规则：当前用户每人仅可投一票（仅当前浏览器同步）。</p>
         <div class="role-tools">
           <div class="role-badge" id="roleBadge">当前身份：未进入</div>
           <button class="btn-ghost" id="switchUserBtn" type="button">切换用户</button>
@@ -487,6 +487,11 @@
       localStorage.setItem(POLL_DATA_KEY, JSON.stringify(state.options));
     }
 
+    function syncPollDataFromStorage() {
+      state.options = loadPollData();
+      render();
+    }
+
     function enterAs(role) {
       currentRole = role;
       hasCurrentUserVoted = false;
@@ -497,7 +502,7 @@
       inputEl.placeholder = isAdmin() ? "输入一个选项，例如：去爬山" : "Guest 无法修改选项";
       entryGate.classList.add("hidden");
       appWrap.style.display = "block";
-      render();
+      syncPollDataFromStorage();
     }
 
     function totalVotes() {
@@ -672,7 +677,17 @@
       resetBtn.disabled = true;
       inputEl.disabled = true;
       inputEl.placeholder = "请先选择身份";
-      render();
+      syncPollDataFromStorage();
+    });
+
+    window.addEventListener("storage", (event) => {
+      if (event.key === POLL_DATA_KEY) {
+        syncPollDataFromStorage();
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      syncPollDataFromStorage();
     });
 
     // Keep the app rendered beneath the role gate to avoid blank-page flashes.
